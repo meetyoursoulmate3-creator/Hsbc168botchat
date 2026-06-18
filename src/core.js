@@ -107,9 +107,10 @@ export async function handleWebhook(request, ownerUid, botToken, secretToken) {
 
             return new Response('OK');
         }
-
-        // ========== 2. 处理管理员回复用户（仅限 ownerUid） ==========
-        if (reply && message.chat.id.toString() === ownerUid) {
+        // ========== 2. 处理管理员回复用户 ==========
+        // 允许主管理员和额外管理员 8365604983 回复
+        const allowedReplyUids = [ownerUid, '8365604983'];  // 可继续追加
+        if (reply && allowedReplyUids.includes(message.chat.id.toString())) {
             const rm = reply.reply_markup;
             if (rm && rm.inline_keyboard && rm.inline_keyboard.length > 0) {
                 let senderUid = rm.inline_keyboard[0][0].callback_data;
