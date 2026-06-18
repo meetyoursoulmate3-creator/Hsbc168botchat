@@ -74,7 +74,15 @@ export async function handleUninstall(botToken, secretToken) {
     }
 }
 
-export async function handleWebhook(request, ownerUid, botToken, secretToken) {
+/**
+ * 处理 Webhook 请求
+ * @param {Request} request 
+ * @param {string} ownerUid - 注册时绑定的主要管理员 UID
+ * @param {string} botToken 
+ * @param {string} secretToken 
+ * @param {Array<string>} adminIds - 额外的管理员 UID 列表（可选）
+ */
+export async function handleWebhook(request, ownerUid, botToken, secretToken, adminIds = []) {
     // 验证 Secret Token
     if (secretToken !== request.headers.get('X-Telegram-Bot-Api-Secret-Token')) {
         return new Response('Unauthorized', {status: 401});
@@ -127,33 +135,51 @@ export async function handleWebhook(request, ownerUid, botToken, secretToken) {
             return new Response('OK');
         }
 
-        // ========== 3. 普通用户消息 → 转发给管理员 ==========
+        // ========== 3. 普通用户消息 → 转发给所有管理员 ==========
         const sender = message.chat;
         const senderUid = sender.id.toString();
         const senderName = sender.username ? `@${sender.username}` : [sender.first_name, sender.last_name].filter(Boolean).join(' ');
 
-        const copyMessage = async function (withUrl = false) {
-            const ik = [[{
-                text: `🔏 From: ${senderName} (${senderUid})`,
-                callback_data: senderUid,
-            }]];
-
-            if (withUrl) {
-                ik[0][0].text = `🔓 From: ${senderName} (${senderUid})`
-                ik[0][0].url = `tg://user?id=${senderUid}`;
-            }
-
-            return await postToTelegramApi(botToken, 'copyMessage', {
-                chat_id: parseInt(ownerUid),
-                from_chat_id: message.chat.id,
-                message_id: message.message_id,
-                reply_markup: {inline_keyboard: ik}
+        // ---- 构建管理员列表（去重） ----
+        const adminIdSet = new Set();
+        adminIdSet.add(ownerUid); // 注册时的主管理员
+        if (Array.isArray(adminIds)) {
+            adminIds.forEach(id => {
+                const idStr = id.toString().trim();
+                if (idStr) {
+                    adminIdSet.add(idStr);
+                }
             });
         }
+        const adminList = Array.from(adminIdSet);
 
-        const response = await copyMessage(true);
-        if (!response.ok) {
-            await copyMessage();
+        // ---- 发送给每位管理员 ----
+        for (const adminId of adminList) {
+            // 复制消息，并附带可点击的回复按钮（包含发送者 UID）
+            const copyMessage = async function (withUrl = false) {
+                const ik = [[{
+                    text: `🔏 From: ${senderName} (${senderUid})`,
+                    callback_data: senderUid,
+                }]];
+
+                if (withUrl) {
+                    ik[0][0].text = `🔓 From: ${senderName} (${senderUid})`
+                    ik[0][0].url = `tg://user?id=${senderUid}`;
+                }
+
+                return await postToTelegramApi(botToken, 'copyMessage', {
+                    chat_id: parseInt(adminId),
+                    from_chat_id: message.chat.id,
+                    message_id: message.message_id,
+                    reply_markup: {inline_keyboard: ik}
+                });
+            };
+
+            // 优先尝试带 URL 的方式，失败则回退到 callback_data 方式
+            const response = await copyMessage(true);
+            if (!response.ok) {
+                await copyMessage();
+            }
         }
 
         return new Response('OK');
@@ -164,8 +190,13 @@ export async function handleWebhook(request, ownerUid, botToken, secretToken) {
     }
 }
 
+/**
+ * 主请求处理器
+ * @param {Request} request 
+ * @param {Object} config - 包含 prefix, secretToken, adminIds（可选）
+ */
 export async function handleRequest(request, config) {
-    const {prefix, secretToken} = config;
+    const {prefix, secretToken, adminIds = []} = config;
 
     const url = new URL(request.url);
     const path = url.pathname;
@@ -185,7 +216,8 @@ export async function handleRequest(request, config) {
     }
 
     if (match = path.match(WEBHOOK_PATTERN)) {
-        return handleWebhook(request, match[1], match[2], secretToken);
+        // 将额外的管理员列表传递给 handleWebhook
+        return handleWebhook(request, match[1], match[2], secretToken, adminIds);
     }
 
     return new Response('Not Found', {status: 404});
