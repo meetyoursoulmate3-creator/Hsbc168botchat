@@ -94,8 +94,8 @@ export async function handleWebhook(request, ownerUid, botToken, secretToken) {
             const welcomeMessage = `欢迎使用汇丰财富联盟！✨
 
 长期招募实力车队 小车可扶持 大车可包养
-业务频道：https://t.me/huifengshbc1688
-交流群：https://t.me/huifenghsbc168
+业务频道：@huifengshbc1688
+交流群：@huifenghsbc168
 
 发送任意消息即可联系管理员。`;
 
