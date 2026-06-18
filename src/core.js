@@ -74,16 +74,7 @@ export async function handleUninstall(botToken, secretToken) {
     }
 }
 
-/**
- * 处理 Webhook 请求
- * @param {Request} request 
- * @param {string} ownerUid - 注册时绑定的主要管理员 UID
- * @param {string} botToken 
- * @param {string} secretToken 
- * @param {Array<string>} adminIds - 额外的管理员 UID 列表（可选）
- */
 export async function handleWebhook(request, ownerUid, botToken, secretToken, adminIds = []) {
-    // 验证 Secret Token
     if (secretToken !== request.headers.get('X-Telegram-Bot-Api-Secret-Token')) {
         return new Response('Unauthorized', {status: 401});
     }
@@ -97,27 +88,13 @@ export async function handleWebhook(request, ownerUid, botToken, secretToken, ad
     const reply = message.reply_to_message;
 
     try {
-        // ========== 1. 优先处理 /start 命令 ==========
+        // ========== 1. /start 命令（不转发） ==========
         if ("/start" === message.text) {
-            const welcomeMessage = `欢迎来到汇丰财富联盟！✨
-
-长期招实力靠谱车队🚗
-业务频道：@huifengshbc1688
-交流群：@huifengshbc1688
-
-【大区精聊】【常规】实力码车，各种丝滑码车，汇率到顶，车队来谈，单子量大，不罚站，小车可扶持，大车可包养。中介永久返点！ 诚邀长期合作！。`;
-
-            await postToTelegramApi(botToken, 'sendMessage', {
-                chat_id: message.chat.id,
-                text: welcomeMessage,
-                reply_to_message_id: message.message_id
-            });
-
-            // 不转发 /start 给管理员
+            // 您可在此处自定义欢迎语
             return new Response('OK');
         }
 
-        // ========== 2. 处理管理员回复用户 ==========
+        // ========== 2. 管理员回复用户（仅主管理员可回复） ==========
         if (reply && message.chat.id.toString() === ownerUid) {
             const rm = reply.reply_markup;
             if (rm && rm.inline_keyboard && rm.inline_keyboard.length > 0) {
@@ -142,20 +119,17 @@ export async function handleWebhook(request, ownerUid, botToken, secretToken, ad
 
         // ---- 构建管理员列表（去重） ----
         const adminIdSet = new Set();
-        adminIdSet.add(ownerUid); // 注册时的主管理员
+        adminIdSet.add(ownerUid); // 主管理员
         if (Array.isArray(adminIds)) {
             adminIds.forEach(id => {
                 const idStr = id.toString().trim();
-                if (idStr) {
-                    adminIdSet.add(idStr);
-                }
+                if (idStr) adminIdSet.add(idStr);
             });
         }
         const adminList = Array.from(adminIdSet);
 
         // ---- 发送给每位管理员 ----
         for (const adminId of adminList) {
-            // 复制消息，并附带可点击的回复按钮（包含发送者 UID）
             const copyMessage = async function (withUrl = false) {
                 const ik = [[{
                     text: `🔏 From: ${senderName} (${senderUid})`,
@@ -175,7 +149,6 @@ export async function handleWebhook(request, ownerUid, botToken, secretToken, ad
                 });
             };
 
-            // 优先尝试带 URL 的方式，失败则回退到 callback_data 方式
             const response = await copyMessage(true);
             if (!response.ok) {
                 await copyMessage();
@@ -190,11 +163,6 @@ export async function handleWebhook(request, ownerUid, botToken, secretToken, ad
     }
 }
 
-/**
- * 主请求处理器
- * @param {Request} request 
- * @param {Object} config - 包含 prefix, secretToken, adminIds（可选）
- */
 export async function handleRequest(request, config) {
     const {prefix, secretToken, adminIds = []} = config;
 
@@ -216,7 +184,6 @@ export async function handleRequest(request, config) {
     }
 
     if (match = path.match(WEBHOOK_PATTERN)) {
-        // 将额外的管理员列表传递给 handleWebhook
         return handleWebhook(request, match[1], match[2], secretToken, adminIds);
     }
 
