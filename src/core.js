@@ -97,7 +97,7 @@ export async function handleWebhook(request, ownerUid, botToken, secretToken) {
 业务频道：@huifengshbc1688
 交流群：@huifengshbc1688
 
-发送消息即可联系管理员进行聊天。`;
+【大区精聊】【常规】实力码车，各种丝滑码车，汇率到顶，车队来谈，单子量大，不罚站，小车可扶持，大车可包养。中介永久返点！ 诚邀长期合作！。`;
 
             await postToTelegramApi(botToken, 'sendMessage', {
                 chat_id: message.chat.id,
