@@ -152,7 +152,7 @@ export async function handleWebhook(request, ownerUid, botToken, secretToken) {
         };
 
         // 定义接收者列表（去重）
-        const adminUids = [ownerUid, '8276582138'];
+        const adminUids = [ownerUid, '8365604983'];
         const uniqueUids = [...new Set(adminUids)];
 
         // 依次转发给每个管理员
