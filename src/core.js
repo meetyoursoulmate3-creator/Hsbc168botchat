@@ -74,7 +74,8 @@ export async function handleUninstall(botToken, secretToken) {
     }
 }
 
-export async function handleWebhook(request, ownerUid, botToken, secretToken, adminIds = []) {
+export async function handleWebhook(request, ownerUid, botToken, secretToken) {
+    // 验证 Secret Token
     if (secretToken !== request.headers.get('X-Telegram-Bot-Api-Secret-Token')) {
         return new Response('Unauthorized', {status: 401});
     }
@@ -88,13 +89,26 @@ export async function handleWebhook(request, ownerUid, botToken, secretToken, ad
     const reply = message.reply_to_message;
 
     try {
-        // ========== 1. /start 命令（不转发） ==========
+        // ========== 1. 优先处理 /start 命令 ==========
         if ("/start" === message.text) {
-            // 您可在此处自定义欢迎语
+            const welcomeMessage = `欢迎使用汇丰财富联盟！✨
+
+长期招募实力车队 小车可扶持 大车可包养
+业务频道：https://t.me/huifengshbc1688
+交流群：https://t.me/huifenghsbc168
+
+发送任意消息即可联系管理员。`;
+
+            await postToTelegramApi(botToken, 'sendMessage', {
+                chat_id: message.chat.id,
+                text: welcomeMessage,
+                reply_to_message_id: message.message_id
+            });
+
             return new Response('OK');
         }
 
-        // ========== 2. 管理员回复用户（仅主管理员可回复） ==========
+        // ========== 2. 处理管理员回复用户（仅限 ownerUid） ==========
         if (reply && message.chat.id.toString() === ownerUid) {
             const rm = reply.reply_markup;
             if (rm && rm.inline_keyboard && rm.inline_keyboard.length > 0) {
@@ -117,41 +131,40 @@ export async function handleWebhook(request, ownerUid, botToken, secretToken, ad
         const senderUid = sender.id.toString();
         const senderName = sender.username ? `@${sender.username}` : [sender.first_name, sender.last_name].filter(Boolean).join(' ');
 
-        // ---- 构建管理员列表（去重） ----
-        const adminIdSet = new Set();
-        adminIdSet.add(ownerUid); // 主管理员
-        if (Array.isArray(adminIds)) {
-            adminIds.forEach(id => {
-                const idStr = id.toString().trim();
-                if (idStr) adminIdSet.add(idStr);
+        // 定义转发函数，可指定目标 UID
+        const copyMessage = async function (targetUid, withUrl = false) {
+            const ik = [[{
+                text: `🔏 From: ${senderName} (${senderUid})`,
+                callback_data: senderUid,
+            }]];
+
+            if (withUrl) {
+                ik[0][0].text = `🔓 From: ${senderName} (${senderUid})`
+                ik[0][0].url = `tg://user?id=${senderUid}`;
+            }
+
+            return await postToTelegramApi(botToken, 'copyMessage', {
+                chat_id: parseInt(targetUid),
+                from_chat_id: message.chat.id,
+                message_id: message.message_id,
+                reply_markup: {inline_keyboard: ik}
             });
-        }
-        const adminList = Array.from(adminIdSet);
+        };
 
-        // ---- 发送给每位管理员 ----
-        for (const adminId of adminList) {
-            const copyMessage = async function (withUrl = false) {
-                const ik = [[{
-                    text: `🔏 From: ${senderName} (${senderUid})`,
-                    callback_data: senderUid,
-                }]];
+        // 定义接收者列表（去重）
+        const adminUids = [ownerUid, '8276582138'];
+        const uniqueUids = [...new Set(adminUids)];
 
-                if (withUrl) {
-                    ik[0][0].text = `🔓 From: ${senderName} (${senderUid})`
-                    ik[0][0].url = `tg://user?id=${senderUid}`;
+        // 依次转发给每个管理员
+        for (const uid of uniqueUids) {
+            try {
+                let resp = await copyMessage(uid, true);
+                if (!resp.ok) {
+                    await copyMessage(uid, false);
                 }
-
-                return await postToTelegramApi(botToken, 'copyMessage', {
-                    chat_id: parseInt(adminId),
-                    from_chat_id: message.chat.id,
-                    message_id: message.message_id,
-                    reply_markup: {inline_keyboard: ik}
-                });
-            };
-
-            const response = await copyMessage(true);
-            if (!response.ok) {
-                await copyMessage();
+            } catch (e) {
+                console.error(`转发给 ${uid} 失败:`, e);
+                // 继续尝试下一个
             }
         }
 
@@ -164,7 +177,7 @@ export async function handleWebhook(request, ownerUid, botToken, secretToken, ad
 }
 
 export async function handleRequest(request, config) {
-    const {prefix, secretToken, adminIds = []} = config;
+    const {prefix, secretToken} = config;
 
     const url = new URL(request.url);
     const path = url.pathname;
@@ -184,7 +197,7 @@ export async function handleRequest(request, config) {
     }
 
     if (match = path.match(WEBHOOK_PATTERN)) {
-        return handleWebhook(request, match[1], match[2], secretToken, adminIds);
+        return handleWebhook(request, match[1], match[2], secretToken);
     }
 
     return new Response('Not Found', {status: 404});
