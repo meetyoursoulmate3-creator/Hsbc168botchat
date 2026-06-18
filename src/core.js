@@ -104,9 +104,22 @@ export async function handleWebhook(request, ownerUid, botToken, secretToken) {
 
             return new Response('OK');
         if ("/start" === message.text) {
-    // 欢迎来到汇丰财富联盟，长期招靠谱车队 业务频道 @huifenghsbc1688 交流群 @huifenghsbc168
+    // 发送欢迎消息
+    const welcomeMessage = `欢迎使用汇丰财富联盟！✨
+
+长期招募富家车队
+业务频道：@huifengshbc1688
+交流群：@huifengshbc1688
+
+发送任意消息即可联系管理员。`;
+
     await postToTelegramApi(botToken, 'sendMessage', {
         chat_id: message.chat.id,
+        text: welcomeMessage,
+        reply_to_message_id: message.message_id
+    });
+
+    // 返回 OK，不将 /start 命令转发给管理员
     return new Response('OK');
 }
         const sender = message.chat;
