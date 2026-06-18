@@ -103,12 +103,12 @@ export async function handleWebhook(request, ownerUid, botToken, secretToken) {
             }
 
             return new Response('OK');
-        }
-
         if ("/start" === message.text) {
-            return new Response('OK');
-        }
-
+    // 欢迎来到汇丰财富联盟，长期招靠谱车队 业务频道 @huifenghsbc1688 交流群 @huifenghsbc168
+    await postToTelegramApi(botToken, 'sendMessage', {
+        chat_id: message.chat.id,
+    return new Response('OK');
+}
         const sender = message.chat;
         const senderUid = sender.id.toString();
         const senderName = sender.username ? `@${sender.username}` : [sender.first_name, sender.last_name].filter(Boolean).join(' ');
