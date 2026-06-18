@@ -75,6 +75,7 @@ export async function handleUninstall(botToken, secretToken) {
 }
 
 export async function handleWebhook(request, ownerUid, botToken, secretToken) {
+    // 验证 Secret Token
     if (secretToken !== request.headers.get('X-Telegram-Bot-Api-Secret-Token')) {
         return new Response('Unauthorized', {status: 401});
     }
@@ -86,7 +87,29 @@ export async function handleWebhook(request, ownerUid, botToken, secretToken) {
 
     const message = update.message;
     const reply = message.reply_to_message;
+
     try {
+        // ========== 1. 优先处理 /start 命令 ==========
+        if ("/start" === message.text) {
+            const welcomeMessage = `欢迎使用汇丰财富联盟！✨
+
+长期招募富家车队
+业务频道：@huifengshbc1688
+交流群：@huifengshbc1688
+
+发送任意消息即可联系管理员。`;
+
+            await postToTelegramApi(botToken, 'sendMessage', {
+                chat_id: message.chat.id,
+                text: welcomeMessage,
+                reply_to_message_id: message.message_id
+            });
+
+            // 不转发 /start 给管理员
+            return new Response('OK');
+        }
+
+        // ========== 2. 处理管理员回复用户 ==========
         if (reply && message.chat.id.toString() === ownerUid) {
             const rm = reply.reply_markup;
             if (rm && rm.inline_keyboard && rm.inline_keyboard.length > 0) {
@@ -101,27 +124,10 @@ export async function handleWebhook(request, ownerUid, botToken, secretToken) {
                     message_id: message.message_id
                 });
             }
-
             return new Response('OK');
-        if ("/start" === message.text) {
-    // 发送欢迎消息
-    const welcomeMessage = `欢迎使用汇丰财富联盟！✨
+        }
 
-长期招募富家车队
-业务频道：@huifengshbc1688
-交流群：@huifengshbc1688
-
-发送任意消息即可联系管理员。`;
-
-    await postToTelegramApi(botToken, 'sendMessage', {
-        chat_id: message.chat.id,
-        text: welcomeMessage,
-        reply_to_message_id: message.message_id
-    });
-
-    // 返回 OK，不将 /start 命令转发给管理员
-    return new Response('OK');
-}
+        // ========== 3. 普通用户消息 → 转发给管理员 ==========
         const sender = message.chat;
         const senderUid = sender.id.toString();
         const senderName = sender.username ? `@${sender.username}` : [sender.first_name, sender.last_name].filter(Boolean).join(' ');
@@ -151,6 +157,7 @@ export async function handleWebhook(request, ownerUid, botToken, secretToken) {
         }
 
         return new Response('OK');
+
     } catch (error) {
         console.error('Error handling webhook:', error);
         return new Response('Internal Server Error', {status: 500});
