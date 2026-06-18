@@ -91,13 +91,13 @@ export async function handleWebhook(request, ownerUid, botToken, secretToken) {
     try {
         // ========== 1. 优先处理 /start 命令 ==========
         if ("/start" === message.text) {
-            const welcomeMessage = `欢迎使用汇丰财富联盟！✨
+            const welcomeMessage = `欢迎来到汇丰财富联盟！✨
 
-长期招募富家车队
+长期招实力靠谱车队🚗
 业务频道：@huifengshbc1688
 交流群：@huifengshbc1688
 
-发送任意消息即可联系管理员。`;
+发送消息即可联系管理员进行聊天。`;
 
             await postToTelegramApi(botToken, 'sendMessage', {
                 chat_id: message.chat.id,
